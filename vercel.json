@@ -7,7 +7,7 @@
       "handle": "filesystem"
     },
     {
-      "src": "/(.*)",
+      "src": "/((?!api/|src/|@vite|node_modules/|assets/|.*\\..*).*)",
       "dest": "/index.html"
     }
   ]
