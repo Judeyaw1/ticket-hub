@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { Button } from './ui/button';
 import { Menu, User, Ticket, CalendarDays, LayoutDashboard } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -13,6 +13,7 @@ type NavbarProfile = {
 
 export function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(isUserAuthenticated);
   const [profile, setProfile] = useState<NavbarProfile | null>(null);
@@ -93,29 +94,31 @@ export function Navbar() {
           <div className="flex items-center space-x-2">
             {isAuthenticated ? (
               <>
-                <Link to={profileHref} className="block">
-                  <Button
-                    variant="ghost"
-                    className={`h-10 rounded-full px-2 ${isProfileRoute ? 'bg-slate-100' : ''}`}
-                  >
-                    <span className="flex items-center gap-2">
-                      {profile?.avatar ? (
-                        <img
-                          src={profile.avatar}
-                          alt={profile?.name || 'Profile'}
-                          className="h-7 w-7 rounded-full object-cover"
-                        />
-                      ) : (
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#172033] text-xs font-semibold text-white">
-                          {profileInitials || <User className="h-4 w-4" />}
-                        </span>
-                      )}
-                      <span className="hidden max-w-[8rem] truncate text-sm font-medium md:block">
-                        {profile?.name || 'Profile'}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => navigate(profileHref)}
+                  aria-label="Open profile"
+                  title="Profile"
+                  className={`h-10 rounded-full px-2 ${isProfileRoute ? 'bg-slate-100' : ''}`}
+                >
+                  <span className="flex items-center gap-2">
+                    {profile?.avatar ? (
+                      <img
+                        src={profile.avatar}
+                        alt={profile?.name || 'Profile'}
+                        className="h-7 w-7 rounded-full object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#172033] text-xs font-semibold text-white">
+                        {profileInitials || <User className="h-4 w-4" />}
                       </span>
+                    )}
+                    <span className="hidden max-w-[8rem] truncate text-sm font-medium md:block">
+                      {profile?.name || 'Profile'}
                     </span>
-                  </Button>
-                </Link>
+                  </span>
+                </Button>
                 {!isOrganizer && (
                   <Link to={organizerHref} className="hidden md:block">
                     <Button variant="outline" size="sm">
