@@ -1,4 +1,4 @@
-import { createEvent } from '../../lib/app-data';
+import { signupUser } from '../../lib/app-data';
 import { readJsonBody } from '../../lib/read-json-body';
 
 export default async function handler(request: any, response: any) {
@@ -9,13 +9,14 @@ export default async function handler(request: any, response: any) {
 
   try {
     const body = await readJsonBody(request);
-    const event = await createEvent({
-      ...body,
-      organizerId: body.organizerId || 'org-1',
+    const user = await signupUser({
+      name: body.name,
+      email: body.email,
+      password: body.password,
     });
 
-    response.status(201).json({ event });
+    response.status(201).json({ user });
   } catch (error) {
-    response.status(500).json({ error: error instanceof Error ? error.message : 'Failed to create event' });
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Failed to sign up' });
   }
 }

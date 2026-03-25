@@ -1,4 +1,5 @@
 import { purchaseTickets } from '../lib/app-data';
+import { readJsonBody } from '../lib/read-json-body';
 
 export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') {
@@ -7,10 +8,11 @@ export default async function handler(request: any, response: any) {
   }
 
   try {
+    const body = await readJsonBody(request);
     const tickets = await purchaseTickets({
-      eventId: request.body.eventId,
-      userId: request.body.userId || 'user-1',
-      quantity: Number(request.body.quantity || 1),
+      eventId: body.eventId,
+      userId: body.userId || 'user-1',
+      quantity: Number(body.quantity || 1),
     });
 
     response.status(201).json({ tickets });

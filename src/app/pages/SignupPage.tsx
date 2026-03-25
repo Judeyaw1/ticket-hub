@@ -7,6 +7,8 @@ import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { Checkbox } from '../components/ui/checkbox';
+import { toast } from 'sonner';
+import { apiPost } from '../lib/api';
 import { setCurrentUserId, setUserAuthenticated } from '../lib/auth';
 
 const joinReasons = [
@@ -32,12 +34,28 @@ export function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setUserAuthenticated(true);
-    setCurrentUserId('user-1');
-    window.location.href = '/dashboard';
+    setIsSubmitting(true);
+
+    try {
+      const data = await apiPost<{ user: { id: string } }>('/api/auth/signup', {
+        name,
+        email,
+        password,
+      });
+
+      setUserAuthenticated(true);
+      setCurrentUserId(data.user.id);
+      toast.success('Account created successfully.');
+      window.location.href = '/dashboard';
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to create account.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -124,7 +142,7 @@ export function SignupPage() {
             <Button
               type="submit"
               size="lg"
-              disabled={!agreedToTerms}
+              disabled={!agreedToTerms || isSubmitting}
               className="h-12 w-full bg-[#172033] hover:bg-[#22304d]"
             >
               Create account

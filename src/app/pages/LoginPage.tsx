@@ -6,6 +6,8 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
+import { toast } from 'sonner';
+import { apiPost } from '../lib/api';
 import { setCurrentUserId, setUserAuthenticated } from '../lib/auth';
 
 const signals = [
@@ -17,12 +19,27 @@ const signals = [
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setUserAuthenticated(true);
-    setCurrentUserId('user-1');
-    window.location.href = '/dashboard';
+    setIsSubmitting(true);
+
+    try {
+      const data = await apiPost<{ user: { id: string } }>('/api/auth/login', {
+        email,
+        password,
+      });
+
+      setUserAuthenticated(true);
+      setCurrentUserId(data.user.id);
+      toast.success('Signed in successfully.');
+      window.location.href = '/dashboard';
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to sign in.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -122,7 +139,7 @@ export function LoginPage() {
               />
             </div>
 
-            <Button type="submit" size="lg" className="h-12 w-full bg-[#172033] hover:bg-[#22304d]">
+            <Button type="submit" size="lg" disabled={isSubmitting} className="h-12 w-full bg-[#172033] hover:bg-[#22304d]">
               Sign in
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>

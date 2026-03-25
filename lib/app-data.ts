@@ -1,4 +1,5 @@
 import { sql } from './db';
+import crypto from 'node:crypto';
 
 function mapEvent(row: any) {
   return {
@@ -350,4 +351,72 @@ export async function purchaseTickets(input: {
   );
 
   return getUserTickets(input.userId);
+}
+
+function hashPassword(password: string) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+export async function signupUser(input: {
+  name: string;
+  email: string;
+  password: string;
+}) {
+  const existingRows = await sql.query(`select id from app_users where lower(email) = lower($1) limit 1`, [
+    input.email,
+  ]);
+
+  if (existingRows[0]) {
+    throw new Error('An account with that email already exists.');
+  }
+
+  const idRows = await sql.query(
+    `select concat('user-', coalesce(max(substring(id from 6)::int), 0) + 1) as id from app_users`
+  );
+  const nextId = idRows[0]?.id || `user-${Date.now()}`;
+  const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(input.name)}`;
+
+  await sql.query(
+    `
+      insert into app_users (id, name, email, avatar, password_hash)
+      values ($1, $2, $3, $4, $5)
+    `,
+    [nextId, input.name, input.email, avatar, hashPassword(input.password)]
+  );
+
+  return {
+    id: nextId,
+    name: input.name,
+    email: input.email,
+    avatar,
+  };
+}
+
+export async function loginUser(input: { email: string; password: string }) {
+  const rows = await sql.query(
+    `
+      select id, name, email, avatar, password_hash
+      from app_users
+      where lower(email) = lower($1)
+      limit 1
+    `,
+    [input.email]
+  );
+
+  const user = rows[0];
+
+  if (!user) {
+    throw new Error('No account found for that email.');
+  }
+
+  if (user.password_hash !== hashPassword(input.password)) {
+    throw new Error('Incorrect password.');
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatar: user.avatar,
+  };
 }
