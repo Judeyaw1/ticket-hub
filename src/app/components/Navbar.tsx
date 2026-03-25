@@ -3,23 +3,48 @@ import { Button } from './ui/button';
 import { Menu, User, Ticket, CalendarDays, LayoutDashboard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
-import { isUserAuthenticated } from '../lib/auth';
+import { getCurrentUserId, isUserAuthenticated } from '../lib/auth';
+import { apiGet } from '../lib/api';
+
+type NavbarProfile = {
+  name: string;
+  avatar: string;
+};
 
 export function Navbar() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(isUserAuthenticated);
+  const [profile, setProfile] = useState<NavbarProfile | null>(null);
 
   const isOrganizer = location.pathname.includes('/organizer');
+  const isProfileRoute = location.pathname === '/profile';
 
   useEffect(() => {
     setIsAuthenticated(isUserAuthenticated());
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setProfile(null);
+      return;
+    }
+
+    apiGet<{ user: NavbarProfile }>(`/api/profile?userId=${getCurrentUserId()}`)
+      .then((data) => setProfile(data.user))
+      .catch(() => setProfile(null));
+  }, [isAuthenticated, location.pathname]);
+
   const organizerHref = isAuthenticated ? '/organizer' : '/login';
   const dashboardHref = isAuthenticated ? '/dashboard' : '/login';
   const profileHref = isAuthenticated ? '/profile' : '/login';
   const ticketsHref = isAuthenticated ? '/tickets' : '/login';
+  const profileInitials = (profile?.name || 'Profile')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
 
   const navLinks = isOrganizer
     ? [
@@ -69,8 +94,26 @@ export function Navbar() {
             {isAuthenticated ? (
               <>
                 <Link to={profileHref} className="block">
-                  <Button variant="ghost" size="icon" className="rounded-full">
-                    <User className="h-5 w-5" />
+                  <Button
+                    variant="ghost"
+                    className={`h-10 rounded-full px-2 ${isProfileRoute ? 'bg-slate-100' : ''}`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {profile?.avatar ? (
+                        <img
+                          src={profile.avatar}
+                          alt={profile?.name || 'Profile'}
+                          className="h-7 w-7 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#172033] text-xs font-semibold text-white">
+                          {profileInitials || <User className="h-4 w-4" />}
+                        </span>
+                      )}
+                      <span className="hidden max-w-[8rem] truncate text-sm font-medium md:block">
+                        {profile?.name || 'Profile'}
+                      </span>
+                    </span>
                   </Button>
                 </Link>
                 {!isOrganizer && (
@@ -114,8 +157,16 @@ export function Navbar() {
                         variant={location.pathname === profileHref ? 'secondary' : 'ghost'}
                         className="w-full justify-start gap-2"
                       >
-                        <User className="h-4 w-4" />
-                        Profile
+                        {profile?.avatar ? (
+                          <img
+                            src={profile.avatar}
+                            alt={profile?.name || 'Profile'}
+                            className="h-5 w-5 rounded-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-4 w-4" />
+                        )}
+                        {profile?.name || 'Profile'}
                       </Button>
                     </Link>
                   )}
