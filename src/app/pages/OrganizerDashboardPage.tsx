@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../components/ui/dropdown-menu';
 import { apiGet } from '../lib/api';
+import { getCurrentUserId } from '../lib/auth';
 import type { Event, OrganizerStats } from '../types';
 
 export function OrganizerDashboardPage() {
@@ -27,7 +28,7 @@ export function OrganizerDashboardPage() {
       events: Event[];
       salesData: { month: string; sales: number }[];
       revenueData: { month: string; revenue: number }[];
-    }>('/api/organizer/dashboard?organizerId=org-1').then((data) => {
+    }>(`/api/organizer/dashboard?organizerId=${getCurrentUserId()}`).then((data) => {
       setStats(data.stats);
       setMyEvents(data.events);
       setSalesData(data.salesData);

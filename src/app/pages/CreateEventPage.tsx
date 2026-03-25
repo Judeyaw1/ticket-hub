@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { apiPost } from '../lib/api';
+import { getCurrentUserId } from '../lib/auth';
 import { toast } from 'sonner';
 
 const categories = [
@@ -83,7 +84,10 @@ export function CreateEventPage() {
     setIsSubmitting(true);
 
     try {
-      await apiPost('/api/organizer/events', formData);
+      await apiPost('/api/organizer/events', {
+        ...formData,
+        organizerId: getCurrentUserId(),
+      });
       toast.success('Event created successfully.');
       navigate('/organizer');
     } catch (error) {

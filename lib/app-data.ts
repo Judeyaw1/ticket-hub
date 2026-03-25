@@ -1,6 +1,37 @@
 import { sql } from './db.js';
 import crypto from 'node:crypto';
 
+async function ensureOrganizerExists(organizerId: string) {
+  const existingRows = await sql.query(`select id from organizers where id = $1 limit 1`, [organizerId]);
+
+  if (existingRows[0]) {
+    return;
+  }
+
+  const userRows = await sql.query(
+    `select name, email, avatar from app_users where id = $1 limit 1`,
+    [organizerId]
+  );
+
+  const user = userRows[0];
+  const organizerName = user?.name || 'Pulse Studio';
+  const organizerAvatar =
+    user?.avatar ||
+    `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(organizerName)}`;
+  const organizerBio = user?.email
+    ? `Organizer account for ${user.email}`
+    : 'Organizer profile created automatically.';
+
+  await sql.query(
+    `
+      insert into organizers (id, name, bio, avatar, is_verified, events_hosted, rating)
+      values ($1, $2, $3, $4, false, 0, 5.0)
+      on conflict (id) do nothing
+    `,
+    [organizerId, organizerName, organizerBio, organizerAvatar]
+  );
+}
+
 function mapEvent(row: any) {
   return {
     id: row.id,
@@ -185,6 +216,8 @@ export async function getUserTickets(userId: string) {
 }
 
 export async function getOrganizerDashboard(organizerId: string) {
+  await ensureOrganizerExists(organizerId);
+
   const eventsRows = await sql.query(
     `${eventSelect} where e.organizer_id = $1 order by e.event_date asc, e.event_time asc`,
     [organizerId]
@@ -262,6 +295,8 @@ export async function createEvent(input: {
   imageUrl: string;
   organizerId: string;
 }) {
+  await ensureOrganizerExists(input.organizerId);
+
   const idRows = await sql.query(`select concat('evt-', coalesce(max(substring(id from 5)::int), 0) + 1) as id from events`);
   const nextId = idRows[0]?.id || `evt-${Date.now()}`;
 
