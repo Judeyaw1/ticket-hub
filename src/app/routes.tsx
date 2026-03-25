@@ -12,6 +12,7 @@ import { OrganizerDashboardPage } from './pages/OrganizerDashboardPage';
 import { CreateEventPage } from './pages/CreateEventPage';
 import { CheckInPage } from './pages/CheckInPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ProfilePage } from './pages/ProfilePage';
 
 export const router = createBrowserRouter([
   {
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
         element: <AuthGuard />,
         children: [
           { path: 'dashboard', element: <DashboardPage /> },
+          { path: 'profile', element: <ProfilePage /> },
           { path: 'tickets', element: <MyTicketsPage /> },
           { path: 'organizer', element: <OrganizerDashboardPage /> },
           { path: 'organizer/create-event', element: <CreateEventPage /> },

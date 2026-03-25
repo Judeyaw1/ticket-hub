@@ -420,3 +420,61 @@ export async function loginUser(input: { email: string; password: string }) {
     avatar: user.avatar,
   };
 }
+
+export async function getUserProfile(userId: string) {
+  const rows = await sql.query(
+    `
+      select id, name, email, avatar
+      from app_users
+      where id = $1
+      limit 1
+    `,
+    [userId]
+  );
+
+  const user = rows[0];
+
+  if (!user) {
+    throw new Error('User not found.');
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatar: user.avatar,
+  };
+}
+
+export async function updateUserProfile(input: {
+  userId: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}) {
+  const rows = await sql.query(
+    `
+      update app_users
+      set
+        name = $2,
+        email = $3,
+        avatar = coalesce(nullif($4, ''), avatar)
+      where id = $1
+      returning id, name, email, avatar
+    `,
+    [input.userId, input.name, input.email, input.avatar || '']
+  );
+
+  const user = rows[0];
+
+  if (!user) {
+    throw new Error('User not found.');
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    avatar: user.avatar,
+  };
+}

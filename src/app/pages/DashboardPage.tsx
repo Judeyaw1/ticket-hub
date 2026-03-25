@@ -64,6 +64,11 @@ export function DashboardPage() {
                 <MetricCard label="Saved" value={String(savedEvents.length)} />
                 <MetricCard label="Attended" value="12" />
               </div>
+              <Link to="/profile" className="mt-5 inline-flex">
+                <Button variant="outline" className="border-white/15 bg-white/5 text-white hover:bg-white/10">
+                  Edit profile
+                </Button>
+              </Link>
             </Card>
           </div>
         </section>

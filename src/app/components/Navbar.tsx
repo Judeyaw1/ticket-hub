@@ -18,6 +18,7 @@ export function Navbar() {
 
   const organizerHref = isAuthenticated ? '/organizer' : '/login';
   const dashboardHref = isAuthenticated ? '/dashboard' : '/login';
+  const profileHref = isAuthenticated ? '/profile' : '/login';
   const ticketsHref = isAuthenticated ? '/tickets' : '/login';
 
   const navLinks = isOrganizer
@@ -67,7 +68,7 @@ export function Navbar() {
           <div className="flex items-center space-x-2">
             {isAuthenticated ? (
               <>
-                <Link to={dashboardHref} className="hidden md:block">
+                <Link to={profileHref} className="hidden md:block">
                   <Button variant="ghost" size="icon" className="rounded-full">
                     <User className="h-5 w-5" />
                   </Button>

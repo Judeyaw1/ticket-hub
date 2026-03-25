@@ -18,8 +18,16 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest<T>(path, 'POST', body);
+}
+
+export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest<T>(path, 'PATCH', body);
+}
+
+async function apiRequest<T>(path: string, method: 'POST' | 'PATCH', body: unknown): Promise<T> {
   const response = await fetch(path, {
-    method: 'POST',
+    method,
     headers: {
       'Content-Type': 'application/json',
     },
