@@ -8,6 +8,7 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { apiPost } from '../lib/api';
+import { toast } from 'sonner';
 
 const categories = [
   'Music',
@@ -23,6 +24,8 @@ const categories = [
 export function CreateEventPage() {
   const navigate = useNavigate();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -36,16 +39,35 @@ export function CreateEventPage() {
     imageUrl: '',
   });
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setSubmitError('');
 
     if (!formData.imageUrl) {
+      setSubmitError('Add a cover image URL or upload an image before creating the event.');
+      toast.error('Add a cover image before creating the event.');
       return;
     }
 
-    apiPost('/api/organizer/events', formData).then(() => {
+    setIsSubmitting(true);
+
+    try {
+      await apiPost('/api/organizer/events', formData);
+      toast.success('Event created successfully.');
       navigate('/organizer');
-    });
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.includes('404')
+          ? 'Event creation API is unavailable. Run the app with `npx vercel dev` so `/api/*` routes are active.'
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create event.';
+
+      setSubmitError(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (field: string, value: string) => {
@@ -251,9 +273,19 @@ export function CreateEventPage() {
               </div>
 
               <div className="mt-6 space-y-3">
-                <Button type="submit" size="lg" className="w-full bg-[#f4b860] text-slate-950 hover:bg-[#f7c87f]">
+                {submitError && (
+                  <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                    {submitError}
+                  </div>
+                )}
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={isSubmitting || isUploadingImage}
+                  className="w-full bg-[#f4b860] text-slate-950 hover:bg-[#f7c87f]"
+                >
                   <Save className="mr-2 h-4 w-4" />
-                  Create event
+                  {isSubmitting ? 'Creating event...' : 'Create event'}
                 </Button>
                 <Button type="button" variant="outline" className="w-full border-white/15 bg-white/5 text-white hover:bg-white/10" onClick={() => navigate('/organizer')}>
                   Cancel
