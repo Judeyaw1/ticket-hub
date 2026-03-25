@@ -9,7 +9,7 @@ import { Separator } from '../components/ui/separator';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
 import { apiPost } from '../lib/api';
-import { setCurrentUserId, setUserAuthenticated } from '../lib/auth';
+import { setCurrentUserId, setCurrentUserOrganizer, setUserAuthenticated } from '../lib/auth';
 
 const joinReasons = [
   {
@@ -34,6 +34,7 @@ export function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [wantsOrganizerAccount, setWantsOrganizerAccount] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -41,16 +42,18 @@ export function SignupPage() {
     setIsSubmitting(true);
 
     try {
-      const data = await apiPost<{ user: { id: string } }>('/api/auth/signup', {
+      const data = await apiPost<{ user: { id: string; isOrganizer: boolean } }>('/api/auth/signup', {
         name,
         email,
         password,
+        isOrganizer: wantsOrganizerAccount,
       });
 
       setUserAuthenticated(true);
       setCurrentUserId(data.user.id);
+      setCurrentUserOrganizer(Boolean(data.user.isOrganizer));
       toast.success('Account created successfully.');
-      window.location.href = '/dashboard';
+      window.location.href = data.user.isOrganizer ? '/organizer' : '/dashboard';
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create account.');
     } finally {
@@ -118,6 +121,17 @@ export function SignupPage() {
                 required
               />
               <p className="text-xs text-slate-500">Use at least 8 characters for the mock flow.</p>
+            </div>
+
+            <div className="flex items-start gap-3 rounded-2xl bg-[#fbf8f3] p-4">
+              <Checkbox
+                id="organizer"
+                checked={wantsOrganizerAccount}
+                onCheckedChange={(checked) => setWantsOrganizerAccount(checked as boolean)}
+              />
+              <label htmlFor="organizer" className="text-sm leading-6 text-slate-600">
+                I want an organizer account so I can create events, manage check-in, and work from the organizer dashboard.
+              </label>
             </div>
 
             <div className="flex items-start gap-3 rounded-2xl bg-[#fbf8f3] p-4">

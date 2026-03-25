@@ -396,6 +396,7 @@ export async function signupUser(input: {
   name: string;
   email: string;
   password: string;
+  isOrganizer?: boolean;
 }) {
   const existingRows = await sql.query(`select id from app_users where lower(email) = lower($1) limit 1`, [
     input.email,
@@ -419,11 +420,16 @@ export async function signupUser(input: {
     [nextId, input.name, input.email, avatar, hashPassword(input.password)]
   );
 
+  if (input.isOrganizer) {
+    await ensureOrganizerExists(nextId);
+  }
+
   return {
     id: nextId,
     name: input.name,
     email: input.email,
     avatar,
+    isOrganizer: Boolean(input.isOrganizer),
   };
 }
 
@@ -448,11 +454,14 @@ export async function loginUser(input: { email: string; password: string }) {
     throw new Error('Incorrect password.');
   }
 
+  const organizerRows = await sql.query(`select id from organizers where id = $1 limit 1`, [user.id]);
+
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     avatar: user.avatar,
+    isOrganizer: Boolean(organizerRows[0]),
   };
 }
 

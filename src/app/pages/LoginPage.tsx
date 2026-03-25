@@ -8,7 +8,7 @@ import { Card } from '../components/ui/card';
 import { Separator } from '../components/ui/separator';
 import { toast } from 'sonner';
 import { apiPost } from '../lib/api';
-import { setCurrentUserId, setUserAuthenticated } from '../lib/auth';
+import { setCurrentUserId, setCurrentUserOrganizer, setUserAuthenticated } from '../lib/auth';
 
 const signals = [
   'Verified organizers and trust signals on every listing',
@@ -26,15 +26,16 @@ export function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const data = await apiPost<{ user: { id: string } }>('/api/auth/login', {
+      const data = await apiPost<{ user: { id: string; isOrganizer: boolean } }>('/api/auth/login', {
         email,
         password,
       });
 
       setUserAuthenticated(true);
       setCurrentUserId(data.user.id);
+      setCurrentUserOrganizer(Boolean(data.user.isOrganizer));
       toast.success('Signed in successfully.');
-      window.location.href = '/dashboard';
+      window.location.href = data.user.isOrganizer ? '/organizer' : '/dashboard';
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to sign in.');
     } finally {

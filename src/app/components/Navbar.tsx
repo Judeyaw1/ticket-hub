@@ -3,28 +3,38 @@ import { Button } from './ui/button';
 import { Menu, User, Ticket, CalendarDays, LayoutDashboard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
-import { isUserAuthenticated } from '../lib/auth';
+import { clearCurrentSession, isCurrentUserOrganizer, isUserAuthenticated } from '../lib/auth';
 
 export function Navbar() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(isUserAuthenticated);
+  const [hasOrganizerAccess, setHasOrganizerAccess] = useState(isCurrentUserOrganizer);
 
-  const isOrganizer = location.pathname.includes('/organizer');
-  const organizerHref = isAuthenticated ? '/organizer' : '/login';
+  const isOrganizerArea = location.pathname.includes('/organizer');
+  const organizerHref = isAuthenticated && hasOrganizerAccess ? '/organizer' : '/signup';
   const dashboardHref = isAuthenticated ? '/dashboard' : '/login';
   const profileHref = isAuthenticated ? '/profile' : '/login';
   const ticketsHref = isAuthenticated ? '/tickets' : '/login';
 
   useEffect(() => {
     setIsAuthenticated(isUserAuthenticated());
+    setHasOrganizerAccess(isCurrentUserOrganizer());
   }, [location.pathname]);
 
-  const navLinks = isOrganizer
+  const handleLogout = () => {
+    clearCurrentSession();
+    setIsAuthenticated(false);
+    setHasOrganizerAccess(false);
+    setIsOpen(false);
+    window.location.href = '/login';
+  };
+
+  const navLinks = isOrganizerArea && hasOrganizerAccess
     ? [
         { to: organizerHref, label: 'Dashboard', icon: LayoutDashboard },
-        { to: isAuthenticated ? '/organizer/create-event' : '/login', label: 'Create Event', icon: CalendarDays },
-        { to: isAuthenticated ? '/organizer/check-in' : '/login', label: 'Check-in', icon: Ticket },
+        { to: isAuthenticated && hasOrganizerAccess ? '/organizer/create-event' : '/signup', label: 'Create Event', icon: CalendarDays },
+        { to: isAuthenticated && hasOrganizerAccess ? '/organizer/check-in' : '/signup', label: 'Check-in', icon: Ticket },
       ]
     : [
         { to: '/events', label: 'Events', icon: CalendarDays },
@@ -71,20 +81,23 @@ export function Navbar() {
                     <User className="h-5 w-5" />
                   </Button>
                 </Link>
-                {!isOrganizer && (
+                {hasOrganizerAccess && !isOrganizerArea && (
                   <Link to={organizerHref} className="hidden md:block">
                     <Button variant="outline" size="sm">
                       Switch to Organizer
                     </Button>
                   </Link>
                 )}
-                {isOrganizer && (
+                {isOrganizerArea && hasOrganizerAccess && (
                   <Link to="/events" className="hidden md:block">
                     <Button variant="outline" size="sm">
                       Switch to User
                     </Button>
                   </Link>
                 )}
+                <Button variant="ghost" size="sm" onClick={handleLogout} className="hidden md:inline-flex">
+                  Log out
+                </Button>
               </>
             ) : (
               <div className="hidden md:flex md:items-center md:space-x-2">
@@ -133,19 +146,24 @@ export function Navbar() {
                     );
                   })}
                   <div className="border-t pt-4">
-                    {!isOrganizer && (
+                    {hasOrganizerAccess && !isOrganizerArea && (
                       <Link to={organizerHref} onClick={() => setIsOpen(false)}>
                         <Button variant="outline" className="w-full">
                           Switch to Organizer
                         </Button>
                       </Link>
                     )}
-                    {isOrganizer && (
+                    {isOrganizerArea && hasOrganizerAccess && (
                       <Link to="/events" onClick={() => setIsOpen(false)}>
                         <Button variant="outline" className="w-full">
                           Switch to User
                         </Button>
                       </Link>
+                    )}
+                    {isAuthenticated && (
+                      <Button variant="ghost" className="w-full" onClick={handleLogout}>
+                        Log out
+                      </Button>
                     )}
                   </div>
                 </div>

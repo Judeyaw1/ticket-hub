@@ -1,5 +1,6 @@
 const AUTH_STORAGE_KEY = 'pulse:isAuthenticated';
 const USER_ID_STORAGE_KEY = 'pulse:userId';
+const ORGANIZER_STORAGE_KEY = 'pulse:isOrganizer';
 
 export function isUserAuthenticated() {
   if (typeof window === 'undefined') {
@@ -31,4 +32,30 @@ export function setCurrentUserId(userId: string) {
   }
 
   window.localStorage.setItem(USER_ID_STORAGE_KEY, userId);
+}
+
+export function isCurrentUserOrganizer() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  return window.localStorage.getItem(ORGANIZER_STORAGE_KEY) === 'true';
+}
+
+export function setCurrentUserOrganizer(isOrganizer: boolean) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(ORGANIZER_STORAGE_KEY, String(isOrganizer));
+}
+
+export function clearCurrentSession() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  window.localStorage.removeItem(USER_ID_STORAGE_KEY);
+  window.localStorage.removeItem(ORGANIZER_STORAGE_KEY);
 }

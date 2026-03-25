@@ -43,6 +43,7 @@ export default async function handler(request: any, response: any) {
       name: body.name,
       email: body.email,
       password: body.password,
+      isOrganizer: Boolean(body.isOrganizer),
     });
 
     response.status(201).json({ user });
