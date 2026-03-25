@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 import { motion, AnimatePresence } from 'motion/react';
 import { Camera, CheckCircle, QrCode, Search, XCircle } from 'lucide-react';
 import { Link } from 'react-router';
@@ -15,17 +16,6 @@ import type { Event } from '../types';
 
 type CheckInStatus = 'idle' | 'valid' | 'invalid' | 'already-used';
 
-declare global {
-  interface Window {
-    BarcodeDetector?: {
-      new (options?: { formats?: string[] }): {
-        detect(source: ImageBitmapSource): Promise<Array<{ rawValue?: string }>>;
-      };
-      getSupportedFormats?: () => Promise<string[]>;
-    };
-  }
-}
-
 export function CheckInPage() {
   const [myEvents, setMyEvents] = useState<Event[]>([]);
   const [recentCheckins, setRecentCheckins] = useState<{ name: string; time: string }[]>([]);
@@ -40,8 +30,8 @@ export function CheckInPage() {
   const [isScannerSupported, setIsScannerSupported] = useState(false);
   const organizerId = getCurrentUserId();
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scanIntervalRef = useRef<number | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const scannerReaderRef = useRef<BrowserQRCodeReader | null>(null);
 
   useEffect(() => {
     apiGet<{ events: Event[]; recentCheckins: { name: string; time: string }[] }>(
@@ -62,7 +52,7 @@ export function CheckInPage() {
   const currentEvent = myEvents.find((event) => event.id === selectedEvent);
 
   useEffect(() => {
-    setIsScannerSupported(Boolean(window.BarcodeDetector && navigator.mediaDevices?.getUserMedia));
+    setIsScannerSupported(Boolean(navigator.mediaDevices?.getUserMedia && window.isSecureContext));
   }, []);
 
   useEffect(() => {
@@ -72,15 +62,10 @@ export function CheckInPage() {
   }, []);
 
   const stopScanner = () => {
-    if (scanIntervalRef.current) {
-      window.clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+    scannerReaderRef.current = null;
+    BrowserQRCodeReader.releaseAllStreams();
 
     if (videoRef.current) {
       videoRef.current.srcObject = null;
@@ -140,49 +125,56 @@ export function CheckInPage() {
       return;
     }
 
-    if (!window.BarcodeDetector || !navigator.mediaDevices?.getUserMedia) {
-      setScannerError('Live QR scanning is not supported in this browser. Use manual verification instead.');
+    if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
+      setScannerError('Live QR scanning needs camera access in a secure browser context. Use HTTPS or localhost, or verify the ticket manually.');
       setScannerActive(false);
       return;
     }
 
     try {
       setScannerError('');
-      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: false,
+      stopScanner();
+
+      const reader = new BrowserQRCodeReader(undefined, {
+        delayBetweenScanAttempts: 250,
+        delayBetweenScanSuccess: 1500,
+        tryPlayVideoTimeout: 5000,
       });
 
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
+      scannerReaderRef.current = reader;
+      scannerControlsRef.current = await reader.decodeFromConstraints(
+        {
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        },
+        videoRef.current,
+        async (result, error, controls) => {
+          scannerControlsRef.current = controls;
 
-      scanIntervalRef.current = window.setInterval(async () => {
-        if (!videoRef.current || videoRef.current.readyState < 2 || isSubmitting) {
-          return;
-        }
-
-        try {
-          const codes = await detector.detect(videoRef.current);
-          const scannedValue = codes[0]?.rawValue?.trim();
-
-          if (scannedValue) {
+          const scannedValue = result?.getText().trim();
+          if (scannedValue && !isSubmitting) {
             setTicketCode(scannedValue);
             stopScanner();
             setScannerActive(false);
             await handleManualCheckIn(scannedValue);
+            return;
           }
-        } catch {
-          setScannerError('Unable to scan the current camera frame. Try manual verification.');
-          stopScanner();
-          setScannerActive(false);
+
+          if (error && !scannerError) {
+            setScannerError('');
+          }
         }
-      }, 600);
-    } catch {
-      setScannerError('Camera access was denied or is unavailable on this device.');
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Camera access was denied or is unavailable on this device.';
+      setScannerError(message);
       stopScanner();
       setScannerActive(false);
     }
@@ -294,8 +286,8 @@ export function CheckInPage() {
                         <div className="mt-4 text-lg">Camera inactive</div>
                         <div className="mt-2 text-sm text-white/70">
                           {isScannerSupported
-                            ? 'Turn on the scanner to start live check-in.'
-                            : 'This browser does not support live QR scanning. Use manual verification.'}
+                            ? 'Turn on the scanner to start live check-in on desktop or mobile.'
+                            : 'Enable camera access in a secure browser context, or use manual verification.'}
                         </div>
                       </div>
                     )}
