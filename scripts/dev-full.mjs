@@ -35,6 +35,7 @@ function matchApiRoute(pathname) {
     '/api/auth/signup': '/api/auth/signup.ts',
     '/api/organizer/dashboard': '/api/organizer/dashboard.ts',
     '/api/organizer/events': '/api/organizer/events.ts',
+    '/api/organizer/check-in': '/api/organizer/check-in.ts',
   };
 
   if (staticRoutes[pathname]) {

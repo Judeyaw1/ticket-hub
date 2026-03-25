@@ -7,7 +7,9 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
-import { apiGet } from '../lib/api';
+import { apiGet, apiPost } from '../lib/api';
+import { getCurrentUserId } from '../lib/auth';
+import { toast } from 'sonner';
 import type { Event } from '../types';
 
 type CheckInStatus = 'idle' | 'valid' | 'invalid' | 'already-used';
@@ -19,36 +21,70 @@ export function CheckInPage() {
   const [ticketCode, setTicketCode] = useState('');
   const [checkInStatus, setCheckInStatus] = useState<CheckInStatus>('idle');
   const [scannerActive, setScannerActive] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [doorStats, setDoorStats] = useState({ checkedIn: 0, totalTickets: 0 });
+  const organizerId = getCurrentUserId();
 
   useEffect(() => {
     apiGet<{ events: Event[]; recentCheckins: { name: string; time: string }[] }>(
-      '/api/organizer/dashboard?organizerId=org-1'
+      `/api/organizer/dashboard?organizerId=${organizerId}`
     ).then((data) => {
       setMyEvents(data.events);
       setRecentCheckins(data.recentCheckins);
+      setDoorStats({
+        checkedIn: data.recentCheckins.length,
+        totalTickets: data.events.reduce((sum, event) => sum + event.ticketsSold, 0),
+      });
     });
-  }, []);
+  }, [organizerId]);
 
   const currentEvent = myEvents.find((event) => event.id === selectedEvent);
 
-  const handleManualCheckIn = () => {
-    if (!ticketCode) return;
+  const handleManualCheckIn = async () => {
+    if (!ticketCode || !selectedEvent) return;
 
-    const isValid = ticketCode.startsWith('QR');
-    const isAlreadyUsed = ticketCode === 'QR000000000';
+    setIsSubmitting(true);
 
-    if (isAlreadyUsed) {
-      setCheckInStatus('already-used');
-    } else if (isValid) {
-      setCheckInStatus('valid');
-    } else {
+    try {
+      const result = await apiPost<{
+        status: CheckInStatus;
+        message: string;
+        stats?: { checkedIn: number; totalTickets: number };
+        recentCheckins?: { name: string; time: string }[];
+      }>('/api/organizer/check-in', {
+        organizerId,
+        eventId: selectedEvent,
+        qrCode: ticketCode,
+      });
+
+      setCheckInStatus(result.status);
+      setStatusMessage(result.message);
+      if (result.stats) {
+        setDoorStats(result.stats);
+      }
+      if (result.recentCheckins) {
+        setRecentCheckins(result.recentCheckins);
+      }
+
+      if (result.status === 'valid') {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to verify ticket.';
       setCheckInStatus('invalid');
+      setStatusMessage(message);
+      toast.error(message);
+    } finally {
+      setIsSubmitting(false);
+      setTimeout(() => {
+        setCheckInStatus('idle');
+        setStatusMessage('');
+        setTicketCode('');
+      }, 3000);
     }
-
-    setTimeout(() => {
-      setCheckInStatus('idle');
-      setTicketCode('');
-    }, 3000);
   };
 
   return (
@@ -155,9 +191,9 @@ export function CheckInPage() {
                       placeholder="QR123456789"
                       className="h-12 rounded-xl border-black/10 bg-[#fbf8f3]"
                     />
-                    <Button onClick={handleManualCheckIn} className="h-12 bg-[#172033] hover:bg-[#22304d]">
+                    <Button onClick={handleManualCheckIn} className="h-12 bg-[#172033] hover:bg-[#22304d]" disabled={isSubmitting}>
                       <Search className="mr-2 h-4 w-4" />
-                      Verify
+                      {isSubmitting ? 'Verifying...' : 'Verify'}
                     </Button>
                   </div>
 
@@ -170,7 +206,7 @@ export function CheckInPage() {
                         exit={{ opacity: 0, y: -12 }}
                         className="mt-5"
                       >
-                        <StatusCard status={checkInStatus} />
+                        <StatusCard status={checkInStatus} message={statusMessage} />
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -194,11 +230,23 @@ export function CheckInPage() {
                   <div className="text-sm uppercase tracking-[0.22em] text-slate-500">Live stats</div>
                   <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">Door progress</h2>
                   <div className="mt-6 space-y-5">
-                    <ProgressRow label="Checked in" value="245" width="65%" />
-                    <ProgressRow label="Total tickets" value="378" width="100%" />
+                    <ProgressRow
+                      label="Checked in"
+                      value={String(doorStats.checkedIn)}
+                      width={
+                        doorStats.totalTickets > 0
+                          ? `${Math.min(100, (doorStats.checkedIn / doorStats.totalTickets) * 100)}%`
+                          : '0%'
+                      }
+                    />
+                    <ProgressRow label="Total tickets" value={String(doorStats.totalTickets)} width="100%" />
                     <div className="flex items-center justify-between rounded-2xl bg-[#fbf8f3] px-4 py-4">
                       <span className="text-sm text-slate-600">Check-in rate</span>
-                      <Badge className="border-0 bg-emerald-100 text-emerald-700">65%</Badge>
+                      <Badge className="border-0 bg-emerald-100 text-emerald-700">
+                        {doorStats.totalTickets > 0
+                          ? `${Math.round((doorStats.checkedIn / doorStats.totalTickets) * 100)}%`
+                          : '0%'}
+                      </Badge>
                     </div>
                   </div>
                 </Card>
@@ -246,23 +294,23 @@ function ProgressRow({ label, value, width }: { label: string; value: string; wi
   );
 }
 
-function StatusCard({ status }: { status: CheckInStatus }) {
+function StatusCard({ status, message }: { status: CheckInStatus; message: string }) {
   const statusMap = {
     valid: {
       title: 'Valid ticket',
-      description: 'Attendee checked in successfully.',
+      description: message || 'Attendee checked in successfully.',
       tone: 'border-emerald-500 bg-emerald-50 text-emerald-900',
       icon: CheckCircle,
     },
     invalid: {
       title: 'Invalid ticket',
-      description: 'This code does not match a valid ticket.',
+      description: message || 'This code does not match a valid ticket.',
       tone: 'border-red-500 bg-red-50 text-red-900',
       icon: XCircle,
     },
     'already-used': {
       title: 'Already used',
-      description: 'This ticket has already been scanned.',
+      description: message || 'This ticket has already been scanned.',
       tone: 'border-orange-500 bg-orange-50 text-orange-900',
       icon: XCircle,
     },

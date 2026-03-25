@@ -253,6 +253,122 @@ export async function getUserTickets(userId: string) {
   return rows.map(mapTicket);
 }
 
+export async function checkInTicket(input: { organizerId: string; eventId: string; qrCode: string }) {
+  await ensureOrganizerExists(input.organizerId);
+
+  const eventRows = await sql.query(
+    `
+      select id, title
+      from events
+      where id = $1 and organizer_id = $2
+      limit 1
+    `,
+    [input.eventId, input.organizerId]
+  );
+
+  const event = eventRows[0];
+
+  if (!event) {
+    throw new Error('Selected event was not found for this organizer.');
+  }
+
+  const ticketRows = await sql.query(
+    `
+      select
+        t.id,
+        t.status,
+        t.qr_code,
+        u.name,
+        u.email
+      from tickets t
+      join app_users u on u.id = t.user_id
+      where t.event_id = $1 and t.qr_code = $2
+      limit 1
+    `,
+    [input.eventId, input.qrCode]
+  );
+
+  const ticket = ticketRows[0];
+
+  if (!ticket) {
+    return {
+      status: 'invalid',
+      message: 'This code does not match a valid ticket for the selected event.',
+    };
+  }
+
+  if (ticket.status === 'used') {
+    return {
+      status: 'already-used',
+      message: 'This ticket has already been checked in.',
+      attendee: {
+        name: ticket.name,
+        email: ticket.email,
+        ticketId: ticket.id,
+      },
+    };
+  }
+
+  await sql.query(
+    `
+      update tickets
+      set status = 'used'
+      where id = $1
+    `,
+    [ticket.id]
+  );
+
+  const checkedInRows = await sql.query(
+    `
+      select count(*)::int as checked_in
+      from tickets
+      where event_id = $1 and status = 'used'
+    `,
+    [input.eventId]
+  );
+
+  const totalRows = await sql.query(
+    `
+      select count(*)::int as total_tickets
+      from tickets
+      where event_id = $1
+    `,
+    [input.eventId]
+  );
+
+  const recentRows = await sql.query(
+    `
+      select
+        u.name,
+        to_char(t.purchase_date, 'YYYY-MM-DD') as time
+      from tickets t
+      join app_users u on u.id = t.user_id
+      where t.event_id = $1 and t.status = 'used'
+      order by t.purchase_date desc, t.id desc
+      limit 8
+    `,
+    [input.eventId]
+  );
+
+  return {
+    status: 'valid',
+    message: 'Attendee checked in successfully.',
+    attendee: {
+      name: ticket.name,
+      email: ticket.email,
+      ticketId: ticket.id,
+    },
+    stats: {
+      checkedIn: Number(checkedInRows[0]?.checked_in || 0),
+      totalTickets: Number(totalRows[0]?.total_tickets || 0),
+    },
+    recentCheckins: recentRows.map((row: any) => ({
+      name: row.name,
+      time: row.time,
+    })),
+  };
+}
+
 export async function getOrganizerDashboard(organizerId: string) {
   await ensureOrganizerExists(organizerId);
 
