@@ -68,7 +68,7 @@ export function Navbar() {
           <div className="flex items-center space-x-2">
             {isAuthenticated ? (
               <>
-                <Link to={profileHref} className="hidden md:block">
+                <Link to={profileHref} className="block">
                   <Button variant="ghost" size="icon" className="rounded-full">
                     <User className="h-5 w-5" />
                   </Button>
@@ -108,6 +108,17 @@ export function Navbar() {
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px]">
                 <div className="flex flex-col space-y-4 mt-8">
+                  {isAuthenticated && (
+                    <Link to={profileHref} onClick={() => setIsOpen(false)}>
+                      <Button
+                        variant={location.pathname === profileHref ? 'secondary' : 'ghost'}
+                        className="w-full justify-start gap-2"
+                      >
+                        <User className="h-4 w-4" />
+                        Profile
+                      </Button>
+                    </Link>
+                  )}
                   {navLinks.map((link) => {
                     const Icon = link.icon;
                     const isActive = location.pathname === link.to;

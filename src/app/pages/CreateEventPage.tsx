@@ -39,13 +39,44 @@ export function CreateEventPage() {
     imageUrl: '',
   });
 
+  const validateForm = () => {
+    const missingFields: string[] = [];
+
+    if (!formData.title.trim()) missingFields.push('title');
+    if (!formData.description.trim()) missingFields.push('description');
+    if (!formData.category.trim()) missingFields.push('category');
+    if (!formData.date.trim()) missingFields.push('date');
+    if (!formData.time.trim()) missingFields.push('time');
+    if (!formData.location.trim()) missingFields.push('location');
+    if (!formData.address.trim()) missingFields.push('address');
+    if (!formData.price.trim()) missingFields.push('price');
+    if (!formData.capacity.trim()) missingFields.push('capacity');
+    if (!formData.imageUrl.trim()) missingFields.push('cover image');
+
+    if (missingFields.length > 0) {
+      return `Complete the required fields before creating the event: ${missingFields.join(', ')}.`;
+    }
+
+    if (Number(formData.price) < 0) {
+      return 'Ticket price cannot be negative.';
+    }
+
+    if (!Number.isFinite(Number(formData.capacity)) || Number(formData.capacity) < 1) {
+      return 'Capacity must be at least 1.';
+    }
+
+    return '';
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitError('');
 
-    if (!formData.imageUrl) {
-      setSubmitError('Add a cover image URL or upload an image before creating the event.');
-      toast.error('Add a cover image before creating the event.');
+    const validationError = validateForm();
+
+    if (validationError) {
+      setSubmitError(validationError);
+      toast.error(validationError);
       return;
     }
 
@@ -109,18 +140,18 @@ export function CreateEventPage() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="mt-8 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
+        <form noValidate onSubmit={handleSubmit} className="mt-8 grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
           <div className="space-y-6">
             <Card className="border-black/5 bg-white/85 p-6 shadow-sm">
               <h2 className="text-2xl font-semibold tracking-[-0.04em]">Basics</h2>
               <div className="mt-5 space-y-4">
                 <div>
                   <Label htmlFor="title">Event title</Label>
-                  <Input id="title" value={formData.title} onChange={(event) => handleChange('title', event.target.value)} placeholder="Enter event title" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" required />
+                  <Input id="title" value={formData.title} onChange={(event) => handleChange('title', event.target.value)} placeholder="Enter event title" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" />
                 </div>
                 <div>
                   <Label htmlFor="description">Description</Label>
-                  <Textarea id="description" value={formData.description} onChange={(event) => handleChange('description', event.target.value)} placeholder="Describe what the experience feels like, who it is for, and what happens on arrival." rows={7} className="mt-2 rounded-xl border-black/10 bg-[#fbf8f3]" required />
+                  <Textarea id="description" value={formData.description} onChange={(event) => handleChange('description', event.target.value)} placeholder="Describe what the experience feels like, who it is for, and what happens on arrival." rows={7} className="mt-2 rounded-xl border-black/10 bg-[#fbf8f3]" />
                 </div>
                 <div>
                   <Label htmlFor="category">Category</Label>
@@ -150,11 +181,11 @@ export function CreateEventPage() {
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div>
                   <Label htmlFor="date">Event date</Label>
-                  <Input id="date" type="date" value={formData.date} onChange={(event) => handleChange('date', event.target.value)} className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" required />
+                  <Input id="date" type="date" value={formData.date} onChange={(event) => handleChange('date', event.target.value)} className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" />
                 </div>
                 <div>
                   <Label htmlFor="time">Start time</Label>
-                  <Input id="time" type="time" value={formData.time} onChange={(event) => handleChange('time', event.target.value)} className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" required />
+                  <Input id="time" type="time" value={formData.time} onChange={(event) => handleChange('time', event.target.value)} className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" />
                 </div>
               </div>
             </Card>
@@ -169,11 +200,11 @@ export function CreateEventPage() {
               <div className="mt-5 space-y-4">
                 <div>
                   <Label htmlFor="location">Venue name</Label>
-                  <Input id="location" value={formData.location} onChange={(event) => handleChange('location', event.target.value)} placeholder="Central Park Amphitheater" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" required />
+                  <Input id="location" value={formData.location} onChange={(event) => handleChange('location', event.target.value)} placeholder="Central Park Amphitheater" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" />
                 </div>
                 <div>
                   <Label htmlFor="address">Full address</Label>
-                  <Input id="address" value={formData.address} onChange={(event) => handleChange('address', event.target.value)} placeholder="Street address, city, state, zip code" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" required />
+                  <Input id="address" value={formData.address} onChange={(event) => handleChange('address', event.target.value)} placeholder="Street address, city, state, zip code" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" />
                 </div>
               </div>
             </Card>
@@ -188,11 +219,11 @@ export function CreateEventPage() {
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div>
                   <Label htmlFor="price">Ticket price</Label>
-                  <Input id="price" type="number" min="0" step="0.01" value={formData.price} onChange={(event) => handleChange('price', event.target.value)} placeholder="0.00" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" required />
+                  <Input id="price" type="number" min="0" step="0.01" value={formData.price} onChange={(event) => handleChange('price', event.target.value)} placeholder="0.00" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" />
                 </div>
                 <div>
                   <Label htmlFor="capacity">Capacity</Label>
-                  <Input id="capacity" type="number" min="1" value={formData.capacity} onChange={(event) => handleChange('capacity', event.target.value)} placeholder="100" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" required />
+                  <Input id="capacity" type="number" min="1" value={formData.capacity} onChange={(event) => handleChange('capacity', event.target.value)} placeholder="100" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" />
                 </div>
               </div>
             </Card>
