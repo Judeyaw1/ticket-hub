@@ -61,6 +61,21 @@ export function CheckInPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!scannerActive) {
+      stopScanner();
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void startScanner();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [scannerActive, selectedEvent]);
+
   const stopScanner = () => {
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
@@ -180,15 +195,15 @@ export function CheckInPage() {
     }
   };
 
-  const toggleScanner = async () => {
+  const toggleScanner = () => {
     if (scannerActive) {
       stopScanner();
       setScannerActive(false);
       return;
     }
 
+    setScannerError('');
     setScannerActive(true);
-    await startScanner();
   };
 
   return (
@@ -266,8 +281,9 @@ export function CheckInPage() {
                   <div className="mt-6 relative overflow-hidden rounded-[1.75rem] bg-slate-950" style={{ aspectRatio: '16/10' }}>
                     {scannerActive ? (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-cover opacity-80" />
-                        <div className="relative h-64 w-64 rounded-2xl border-4 border-[#f4b860]">
+                        <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 z-0 h-full w-full object-cover opacity-90" />
+                        <div className="absolute inset-0 z-10 bg-gradient-to-b from-slate-950/10 via-transparent to-slate-950/35" />
+                        <div className="relative z-20 h-64 w-64 rounded-2xl border-4 border-[#f4b860]">
                           <div className="absolute left-0 top-0 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-white" />
                           <div className="absolute right-0 top-0 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-white" />
                           <div className="absolute bottom-0 left-0 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-white" />
@@ -278,7 +294,7 @@ export function CheckInPage() {
                             transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                           />
                         </div>
-                        <div className="absolute bottom-5 text-sm text-white/80">Position the QR code inside the frame</div>
+                        <div className="absolute bottom-5 z-20 text-sm text-white/90">Position the QR code inside the frame</div>
                       </div>
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
