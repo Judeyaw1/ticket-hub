@@ -1,51 +1,24 @@
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { Button } from './ui/button';
 import { Menu, User, Ticket, CalendarDays, LayoutDashboard } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
-import { getCurrentUserId, isUserAuthenticated } from '../lib/auth';
-import { apiGet } from '../lib/api';
-
-type NavbarProfile = {
-  name: string;
-  avatar: string;
-};
+import { isUserAuthenticated } from '../lib/auth';
 
 export function Navbar() {
   const location = useLocation();
-  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(isUserAuthenticated);
-  const [profile, setProfile] = useState<NavbarProfile | null>(null);
 
   const isOrganizer = location.pathname.includes('/organizer');
-  const isProfileRoute = location.pathname === '/profile';
-
-  useEffect(() => {
-    setIsAuthenticated(isUserAuthenticated());
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setProfile(null);
-      return;
-    }
-
-    apiGet<{ user: NavbarProfile }>(`/api/profile?userId=${getCurrentUserId()}`)
-      .then((data) => setProfile(data.user))
-      .catch(() => setProfile(null));
-  }, [isAuthenticated, location.pathname]);
-
   const organizerHref = isAuthenticated ? '/organizer' : '/login';
   const dashboardHref = isAuthenticated ? '/dashboard' : '/login';
   const profileHref = isAuthenticated ? '/profile' : '/login';
   const ticketsHref = isAuthenticated ? '/tickets' : '/login';
-  const profileInitials = (profile?.name || 'Profile')
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
+
+  useEffect(() => {
+    setIsAuthenticated(isUserAuthenticated());
+  }, [location.pathname]);
 
   const navLinks = isOrganizer
     ? [
@@ -63,7 +36,6 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600">
               <span className="text-lg font-bold text-white">P</span>
@@ -71,17 +43,14 @@ export function Navbar() {
             <span className="text-xl font-semibold">Pulse</span>
           </Link>
 
-          {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:space-x-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
               const isActive = location.pathname === link.to;
+
               return (
                 <Link key={link.to} to={link.to}>
-                  <Button
-                    variant={isActive ? 'secondary' : 'ghost'}
-                    className="gap-2"
-                  >
+                  <Button variant={isActive ? 'secondary' : 'ghost'} className="gap-2">
                     <Icon className="h-4 w-4" />
                     {link.label}
                   </Button>
@@ -90,35 +59,18 @@ export function Navbar() {
             })}
           </div>
 
-          {/* Right side actions */}
           <div className="flex items-center space-x-2">
             {isAuthenticated ? (
               <>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => navigate(profileHref)}
-                  aria-label="Open profile"
-                  title="Profile"
-                  className={`h-10 rounded-full px-2 ${isProfileRoute ? 'bg-slate-100' : ''}`}
-                >
-                  <span className="flex items-center gap-2">
-                    {profile?.avatar ? (
-                      <img
-                        src={profile.avatar}
-                        alt={profile?.name || 'Profile'}
-                        className="h-7 w-7 rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#172033] text-xs font-semibold text-white">
-                        {profileInitials || <User className="h-4 w-4" />}
-                      </span>
-                    )}
-                    <span className="hidden max-w-[8rem] truncate text-sm font-medium md:block">
-                      {profile?.name || 'Profile'}
-                    </span>
-                  </span>
-                </Button>
+                <Link to={profileHref} aria-label="Profile">
+                  <Button
+                    variant={location.pathname === '/profile' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    className="rounded-full"
+                  >
+                    <User className="h-5 w-5" />
+                  </Button>
+                </Link>
                 {!isOrganizer && (
                   <Link to={organizerHref} className="hidden md:block">
                     <Button variant="outline" size="sm">
@@ -145,7 +97,6 @@ export function Navbar() {
               </div>
             )}
 
-            {/* Mobile menu */}
             <Sheet open={isOpen} onOpenChange={setIsOpen}>
               <SheetTrigger asChild className="md:hidden">
                 <Button variant="ghost" size="icon">
@@ -153,35 +104,24 @@ export function Navbar() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-[300px] sm:w-[400px]">
-                <div className="flex flex-col space-y-4 mt-8">
+                <div className="mt-8 flex flex-col space-y-4">
                   {isAuthenticated && (
                     <Link to={profileHref} onClick={() => setIsOpen(false)}>
                       <Button
-                        variant={location.pathname === profileHref ? 'secondary' : 'ghost'}
+                        variant={location.pathname === '/profile' ? 'secondary' : 'ghost'}
                         className="w-full justify-start gap-2"
                       >
-                        {profile?.avatar ? (
-                          <img
-                            src={profile.avatar}
-                            alt={profile?.name || 'Profile'}
-                            className="h-5 w-5 rounded-full object-cover"
-                          />
-                        ) : (
-                          <User className="h-4 w-4" />
-                        )}
-                        {profile?.name || 'Profile'}
+                        <User className="h-4 w-4" />
+                        Profile
                       </Button>
                     </Link>
                   )}
                   {navLinks.map((link) => {
                     const Icon = link.icon;
                     const isActive = location.pathname === link.to;
+
                     return (
-                      <Link
-                        key={link.to}
-                        to={link.to}
-                        onClick={() => setIsOpen(false)}
-                      >
+                      <Link key={link.to} to={link.to} onClick={() => setIsOpen(false)}>
                         <Button
                           variant={isActive ? 'secondary' : 'ghost'}
                           className="w-full justify-start gap-2"
@@ -192,7 +132,7 @@ export function Navbar() {
                       </Link>
                     );
                   })}
-                  <div className="pt-4 border-t">
+                  <div className="border-t pt-4">
                     {!isOrganizer && (
                       <Link to={organizerHref} onClick={() => setIsOpen(false)}>
                         <Button variant="outline" className="w-full">
