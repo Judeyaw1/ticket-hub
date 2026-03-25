@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Camera, CheckCircle, QrCode, Search, XCircle } from 'lucide-react';
+import { Link } from 'react-router';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -14,6 +15,17 @@ import type { Event } from '../types';
 
 type CheckInStatus = 'idle' | 'valid' | 'invalid' | 'already-used';
 
+declare global {
+  interface Window {
+    BarcodeDetector?: {
+      new (options?: { formats?: string[] }): {
+        detect(source: ImageBitmapSource): Promise<Array<{ rawValue?: string }>>;
+      };
+      getSupportedFormats?: () => Promise<string[]>;
+    };
+  }
+}
+
 export function CheckInPage() {
   const [myEvents, setMyEvents] = useState<Event[]>([]);
   const [recentCheckins, setRecentCheckins] = useState<{ name: string; time: string }[]>([]);
@@ -24,7 +36,12 @@ export function CheckInPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [doorStats, setDoorStats] = useState({ checkedIn: 0, totalTickets: 0 });
+  const [scannerError, setScannerError] = useState('');
+  const [isScannerSupported, setIsScannerSupported] = useState(false);
   const organizerId = getCurrentUserId();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     apiGet<{ events: Event[]; recentCheckins: { name: string; time: string }[] }>(
@@ -32,6 +49,9 @@ export function CheckInPage() {
     ).then((data) => {
       setMyEvents(data.events);
       setRecentCheckins(data.recentCheckins);
+      if (data.events.length > 0) {
+        setSelectedEvent((current) => current || data.events[0].id);
+      }
       setDoorStats({
         checkedIn: data.recentCheckins.length,
         totalTickets: data.events.reduce((sum, event) => sum + event.ticketsSold, 0),
@@ -41,8 +61,35 @@ export function CheckInPage() {
 
   const currentEvent = myEvents.find((event) => event.id === selectedEvent);
 
-  const handleManualCheckIn = async () => {
-    if (!ticketCode || !selectedEvent) return;
+  useEffect(() => {
+    setIsScannerSupported(Boolean(window.BarcodeDetector && navigator.mediaDevices?.getUserMedia));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      stopScanner();
+    };
+  }, []);
+
+  const stopScanner = () => {
+    if (scanIntervalRef.current) {
+      window.clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  const handleManualCheckIn = async (codeOverride?: string) => {
+    const code = codeOverride || ticketCode;
+    if (!code || !selectedEvent) return;
 
     setIsSubmitting(true);
 
@@ -55,7 +102,7 @@ export function CheckInPage() {
       }>('/api/organizer/check-in', {
         organizerId,
         eventId: selectedEvent,
-        qrCode: ticketCode,
+        qrCode: code,
       });
 
       setCheckInStatus(result.status);
@@ -85,6 +132,71 @@ export function CheckInPage() {
         setTicketCode('');
       }, 3000);
     }
+  };
+
+  const startScanner = async () => {
+    if (!selectedEvent) {
+      toast.error('Select an event before starting the scanner.');
+      return;
+    }
+
+    if (!window.BarcodeDetector || !navigator.mediaDevices?.getUserMedia) {
+      setScannerError('Live QR scanning is not supported in this browser. Use manual verification instead.');
+      setScannerActive(false);
+      return;
+    }
+
+    try {
+      setScannerError('');
+      const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      scanIntervalRef.current = window.setInterval(async () => {
+        if (!videoRef.current || videoRef.current.readyState < 2 || isSubmitting) {
+          return;
+        }
+
+        try {
+          const codes = await detector.detect(videoRef.current);
+          const scannedValue = codes[0]?.rawValue?.trim();
+
+          if (scannedValue) {
+            setTicketCode(scannedValue);
+            stopScanner();
+            setScannerActive(false);
+            await handleManualCheckIn(scannedValue);
+          }
+        } catch {
+          setScannerError('Unable to scan the current camera frame. Try manual verification.');
+          stopScanner();
+          setScannerActive(false);
+        }
+      }, 600);
+    } catch {
+      setScannerError('Camera access was denied or is unavailable on this device.');
+      stopScanner();
+      setScannerActive(false);
+    }
+  };
+
+  const toggleScanner = async () => {
+    if (scannerActive) {
+      stopScanner();
+      setScannerActive(false);
+      return;
+    }
+
+    setScannerActive(true);
+    await startScanner();
   };
 
   return (
@@ -118,7 +230,7 @@ export function CheckInPage() {
             <Card className="border-black/5 bg-white/85 p-6 shadow-sm">
               <Label htmlFor="event">Select event</Label>
               <Select value={selectedEvent} onValueChange={setSelectedEvent}>
-                <SelectTrigger id="event" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]">
+                <SelectTrigger id="event" className="mt-2 h-12 rounded-xl border-black/10 bg-[#fbf8f3]" disabled={myEvents.length === 0}>
                   <SelectValue placeholder="Choose an event to check in attendees" />
                 </SelectTrigger>
                 <SelectContent>
@@ -129,6 +241,16 @@ export function CheckInPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {myEvents.length === 0 && (
+                <div className="mt-4 rounded-2xl bg-[#fbf8f3] p-4 text-sm text-slate-600">
+                  You do not have any organizer events yet. Create one first, then return here to check in attendees.
+                  <div className="mt-3">
+                    <Link to="/organizer/create-event">
+                      <Button className="bg-[#172033] hover:bg-[#22304d]">Create event</Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
             </Card>
 
             {selectedEvent ? (
@@ -140,7 +262,7 @@ export function CheckInPage() {
                       <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em]">QR capture</h2>
                     </div>
                     <Button
-                      onClick={() => setScannerActive((value) => !value)}
+                      onClick={toggleScanner}
                       variant={scannerActive ? 'destructive' : 'default'}
                       className={scannerActive ? '' : 'bg-[#172033] hover:bg-[#22304d]'}
                     >
@@ -152,6 +274,7 @@ export function CheckInPage() {
                   <div className="mt-6 relative overflow-hidden rounded-[1.75rem] bg-slate-950" style={{ aspectRatio: '16/10' }}>
                     {scannerActive ? (
                       <div className="absolute inset-0 flex items-center justify-center">
+                        <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-cover opacity-80" />
                         <div className="relative h-64 w-64 rounded-2xl border-4 border-[#f4b860]">
                           <div className="absolute left-0 top-0 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-white" />
                           <div className="absolute right-0 top-0 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-white" />
@@ -169,10 +292,19 @@ export function CheckInPage() {
                       <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
                         <Camera className="h-16 w-16 opacity-50" />
                         <div className="mt-4 text-lg">Camera inactive</div>
-                        <div className="mt-2 text-sm text-white/70">Turn on the scanner to start live check-in.</div>
+                        <div className="mt-2 text-sm text-white/70">
+                          {isScannerSupported
+                            ? 'Turn on the scanner to start live check-in.'
+                            : 'This browser does not support live QR scanning. Use manual verification.'}
+                        </div>
                       </div>
                     )}
                   </div>
+                  {scannerError && (
+                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {scannerError}
+                    </div>
+                  )}
                 </Card>
 
                 <Card className="border-black/5 bg-white/85 p-6 shadow-sm">
