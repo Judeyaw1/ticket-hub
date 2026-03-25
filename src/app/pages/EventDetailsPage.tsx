@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import {
   Calendar,
   CheckCircle,
+  CreditCard,
   Clock,
   MapPin,
   Share2,
@@ -16,8 +17,11 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import { apiGet, apiPost } from '../lib/api';
-import { getCurrentUserId } from '../lib/auth';
+import { getCurrentUserId, isUserAuthenticated } from '../lib/auth';
+import { toast } from 'sonner';
 import type { Event } from '../types';
 
 export function EventDetailsPage() {
@@ -25,6 +29,15 @@ export function EventDetailsPage() {
   const [event, setEvent] = useState<Event | null>(null);
   const [ticketQuantity, setTicketQuantity] = useState(1);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [paymentData, setPaymentData] = useState({
+    cardholderName: '',
+    cardNumber: '',
+    expiry: '',
+    cvc: '',
+    email: '',
+  });
 
   useEffect(() => {
     if (!id) {
@@ -52,18 +65,52 @@ export function EventDetailsPage() {
   const subtotal = event.price * ticketQuantity;
   const total = subtotal * 1.05;
 
-  const handlePurchase = () => {
-    setShowPurchaseModal(true);
-    apiPost('/api/purchase-ticket', {
-      eventId: event.id,
-      userId: getCurrentUserId(),
-      quantity: ticketQuantity,
-    }).then(() => {
-      setTimeout(() => {
-        setShowPurchaseModal(false);
-        window.location.href = '/tickets';
-      }, 1200);
-    });
+  const handlePaymentChange = (field: keyof typeof paymentData, value: string) => {
+    setPaymentData((previous) => ({ ...previous, [field]: value }));
+  };
+
+  const validatePayment = () => {
+    if (!paymentData.cardholderName.trim()) return 'Enter the cardholder name.';
+    if (paymentData.cardNumber.replace(/\s/g, '').length < 12) return 'Enter a valid card number.';
+    if (!/^\d{2}\/\d{2}$/.test(paymentData.expiry.trim())) return 'Use card expiry in MM/YY format.';
+    if (!/^\d{3,4}$/.test(paymentData.cvc.trim())) return 'Enter a valid security code.';
+    if (!paymentData.email.trim()) return 'Enter an email for the receipt.';
+    return '';
+  };
+
+  const handlePurchase = async () => {
+    if (!isUserAuthenticated()) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const validationError = validatePayment();
+    if (validationError) {
+      setPaymentError(validationError);
+      toast.error(validationError);
+      return;
+    }
+
+    setPaymentError('');
+    setIsProcessingPayment(true);
+
+    try {
+      await apiPost('/api/purchase-ticket', {
+        eventId: event.id,
+        userId: getCurrentUserId(),
+        quantity: ticketQuantity,
+      });
+
+      toast.success('Payment successful. Your ticket is ready.');
+      setShowPurchaseModal(false);
+      window.location.href = '/tickets';
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Payment failed.';
+      setPaymentError(message);
+      toast.error(message);
+    } finally {
+      setIsProcessingPayment(false);
+    }
   };
 
   return (
@@ -226,18 +273,109 @@ export function EventDetailsPage() {
                       <Button
                         size="lg"
                         className="mt-6 h-12 w-full bg-[#f4b860] text-slate-950 hover:bg-[#f7c87f]"
-                        onClick={handlePurchase}
+                        onClick={() => setShowPurchaseModal(true)}
                       >
                         Purchase tickets
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="border-black/5 bg-white">
                       <DialogHeader>
-                        <DialogTitle>Processing purchase</DialogTitle>
+                        <DialogTitle>Payment</DialogTitle>
                       </DialogHeader>
-                      <div className="py-8 text-center">
-                        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-[#9a442e]" />
-                        <p className="text-slate-600">Please wait while the order is confirmed.</p>
+                      <div className="space-y-6 py-2">
+                        <div className="rounded-[1.5rem] bg-[#f6f1e8] p-5">
+                          <div className="text-sm uppercase tracking-[0.2em] text-slate-500">Order summary</div>
+                          <div className="mt-3 text-xl font-semibold text-slate-900">{event.title}</div>
+                          <div className="mt-2 flex items-center justify-between text-sm text-slate-600">
+                            <span>{ticketQuantity} ticket{ticketQuantity > 1 ? 's' : ''}</span>
+                            <span>${subtotal.toFixed(2)}</span>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-sm text-slate-600">
+                            <span>Service fee</span>
+                            <span>${(subtotal * 0.05).toFixed(2)}</span>
+                          </div>
+                          <div className="mt-4 flex items-center justify-between border-t border-black/10 pt-4 text-base font-semibold text-slate-900">
+                            <span>Total</span>
+                            <span>${total.toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="cardholderName">Cardholder name</Label>
+                            <Input
+                              id="cardholderName"
+                              value={paymentData.cardholderName}
+                              onChange={(event) => handlePaymentChange('cardholderName', event.target.value)}
+                              placeholder="Jane Doe"
+                              className="h-12 rounded-xl border-black/10 bg-[#fbf8f3]"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="checkoutEmail">Receipt email</Label>
+                            <Input
+                              id="checkoutEmail"
+                              type="email"
+                              value={paymentData.email}
+                              onChange={(event) => handlePaymentChange('email', event.target.value)}
+                              placeholder="you@example.com"
+                              className="h-12 rounded-xl border-black/10 bg-[#fbf8f3]"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="cardNumber">Card number</Label>
+                            <div className="relative">
+                              <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                              <Input
+                                id="cardNumber"
+                                value={paymentData.cardNumber}
+                                onChange={(event) => handlePaymentChange('cardNumber', event.target.value)}
+                                placeholder="4242 4242 4242 4242"
+                                className="h-12 rounded-xl border-black/10 bg-[#fbf8f3] pl-10"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label htmlFor="cardExpiry">Expiry</Label>
+                              <Input
+                                id="cardExpiry"
+                                value={paymentData.expiry}
+                                onChange={(event) => handlePaymentChange('expiry', event.target.value)}
+                                placeholder="MM/YY"
+                                className="h-12 rounded-xl border-black/10 bg-[#fbf8f3]"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="cardCvc">CVC</Label>
+                              <Input
+                                id="cardCvc"
+                                value={paymentData.cvc}
+                                onChange={(event) => handlePaymentChange('cvc', event.target.value)}
+                                placeholder="123"
+                                className="h-12 rounded-xl border-black/10 bg-[#fbf8f3]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {paymentError && (
+                          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                            {paymentError}
+                          </div>
+                        )}
+
+                        <Button
+                          size="lg"
+                          className="h-12 w-full bg-[#172033] hover:bg-[#22304d]"
+                          onClick={handlePurchase}
+                          disabled={isProcessingPayment}
+                        >
+                          {isProcessingPayment ? 'Processing payment...' : `Pay $${total.toFixed(2)} and get tickets`}
+                        </Button>
+                        <p className="text-center text-xs text-slate-500">
+                          Demo payment flow. Successful payment will place the ticket in your ticket wallet.
+                        </p>
                       </div>
                     </DialogContent>
                   </Dialog>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { format } from 'date-fns';
-import { Calendar, Download, MapPin, Share2, Ticket as TicketIcon } from 'lucide-react';
+import { Calendar, Check, Copy, Download, MapPin, Share2, Ticket as TicketIcon } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { apiGet } from '../lib/api';
 import { getCurrentUserId } from '../lib/auth';
+import { toast } from 'sonner';
 import type { Ticket } from '../types';
 
 export function MyTicketsPage() {
@@ -85,6 +86,36 @@ export function MyTicketsPage() {
 }
 
 function TicketCard({ ticket, isPast }: { ticket: Ticket; isPast?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const qrImage = createQrDataUrl(ticket.qrCode);
+
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = qrImage;
+    link.download = `${ticket.id}-qr.svg`;
+    link.click();
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: `${ticket.event.title} ticket`,
+      text: `Ticket ${ticket.id} · QR code ${ticket.qrCode}`,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(ticket.qrCode);
+        setCopied(true);
+        toast.success('QR code copied to clipboard.');
+        window.setTimeout(() => setCopied(false), 2000);
+      }
+    } catch {
+      toast.error('Unable to share this ticket right now.');
+    }
+  };
+
   return (
     <Card className="overflow-hidden border-black/5 bg-white/85 shadow-sm">
       <div className="grid gap-0 lg:grid-cols-[260px_1fr]">
@@ -124,21 +155,35 @@ function TicketCard({ ticket, isPast }: { ticket: Ticket; isPast?: boolean }) {
                   </DialogHeader>
                   <div className="py-4">
                     <div className="flex items-center justify-center rounded-[1.5rem] bg-[#f6f1e8] p-8">
-                      <div className="flex h-64 w-64 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-black/10 bg-white">
-                        <TicketIcon className="h-16 w-16 text-slate-400" />
-                        <div className="mt-3 text-sm text-slate-600">QR Code</div>
-                        <div className="mt-1 text-xs text-slate-400">{ticket.qrCode}</div>
+                      <div className="flex w-[18rem] flex-col items-center rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+                        <img src={qrImage} alt={`QR code for ${ticket.event.title}`} className="h-64 w-64 rounded-xl border border-black/5" />
+                        <div className="mt-4 text-sm font-medium text-slate-700">{ticket.event.title}</div>
+                        <div className="mt-1 text-xs tracking-[0.2em] text-slate-400">ENTRY QR CODE</div>
+                        <div className="mt-2 rounded-full bg-[#f6f1e8] px-3 py-1 font-mono text-xs text-slate-600">{ticket.qrCode}</div>
                       </div>
                     </div>
                     <p className="mt-4 text-center text-sm text-slate-600">Show this code at the event entrance.</p>
-                    <div className="mt-5 grid grid-cols-2 gap-3">
-                      <Button variant="outline" className="border-black/10 bg-[#fbf8f3]">
+                    <div className="mt-5 grid grid-cols-3 gap-3">
+                      <Button variant="outline" className="border-black/10 bg-[#fbf8f3]" onClick={handleDownload}>
                         <Download className="mr-2 h-4 w-4" />
                         Download
                       </Button>
-                      <Button variant="outline" className="border-black/10 bg-[#fbf8f3]">
+                      <Button variant="outline" className="border-black/10 bg-[#fbf8f3]" onClick={handleShare}>
                         <Share2 className="mr-2 h-4 w-4" />
                         Share
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="border-black/10 bg-[#fbf8f3]"
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(ticket.qrCode);
+                          setCopied(true);
+                          toast.success('Ticket code copied.');
+                          window.setTimeout(() => setCopied(false), 2000);
+                        }}
+                      >
+                        {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                        {copied ? 'Copied' : 'Copy code'}
                       </Button>
                     </div>
                   </div>
@@ -165,6 +210,51 @@ function TicketCard({ ticket, isPast }: { ticket: Ticket; isPast?: boolean }) {
       </div>
     </Card>
   );
+}
+
+function createQrDataUrl(value: string) {
+  const size = 21;
+  const cell = 12;
+  const padding = 12;
+  const grid = Array.from({ length: size }, (_, row) =>
+    Array.from({ length: size }, (_, col) => {
+      if (isFinderCell(row, col, size)) {
+        return finderValue(row, col, size);
+      }
+
+      const charCode = value.charCodeAt((row * size + col) % value.length);
+      return ((row * 17 + col * 31 + charCode) % 7) < 3;
+    })
+  );
+
+  const rects: string[] = [];
+  for (let row = 0; row < size; row += 1) {
+    for (let col = 0; col < size; col += 1) {
+      if (!grid[row][col]) continue;
+      rects.push(
+        `<rect x="${padding + col * cell}" y="${padding + row * cell}" width="${cell}" height="${cell}" rx="1" fill="#0f172a" />`
+      );
+    }
+  }
+
+  const dimension = padding * 2 + size * cell;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${dimension}" height="${dimension}" viewBox="0 0 ${dimension} ${dimension}" fill="none"><rect width="${dimension}" height="${dimension}" rx="24" fill="#ffffff"/>${rects.join('')}</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function isFinderCell(row: number, col: number, size: number) {
+  const inTopLeft = row < 7 && col < 7;
+  const inTopRight = row < 7 && col >= size - 7;
+  const inBottomLeft = row >= size - 7 && col < 7;
+  return inTopLeft || inTopRight || inBottomLeft;
+}
+
+function finderValue(row: number, col: number, size: number) {
+  const localRow = row >= size - 7 ? row - (size - 7) : row;
+  const localCol = col >= size - 7 ? col - (size - 7) : col;
+  const outer = localRow === 0 || localRow === 6 || localCol === 0 || localCol === 6;
+  const inner = localRow >= 2 && localRow <= 4 && localCol >= 2 && localCol <= 4;
+  return outer || inner;
 }
 
 function TicketMetric({ label, value }: { label: string; value: string }) {

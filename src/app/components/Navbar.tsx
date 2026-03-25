@@ -4,12 +4,20 @@ import { Menu, User, Ticket, CalendarDays, LayoutDashboard } from 'lucide-react'
 import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from './ui/sheet';
 import { clearCurrentSession, isCurrentUserOrganizer, isUserAuthenticated } from '../lib/auth';
+import { apiGet } from '../lib/api';
+import { getCurrentUserId } from '../lib/auth';
+
+type NavbarProfile = {
+  name: string;
+  avatar: string;
+};
 
 export function Navbar() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(isUserAuthenticated);
   const [hasOrganizerAccess, setHasOrganizerAccess] = useState(isCurrentUserOrganizer);
+  const [profile, setProfile] = useState<NavbarProfile | null>(null);
 
   const isOrganizerArea = location.pathname.includes('/organizer');
   const organizerHref = isAuthenticated && hasOrganizerAccess ? '/organizer' : '/signup';
@@ -21,6 +29,29 @@ export function Navbar() {
     setIsAuthenticated(isUserAuthenticated());
     setHasOrganizerAccess(isCurrentUserOrganizer());
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setProfile(null);
+      return;
+    }
+
+    apiGet<{ user: NavbarProfile }>(`/api/profile?userId=${getCurrentUserId()}`)
+      .then((data) => setProfile(data.user))
+      .catch(() => setProfile(null));
+
+    const handleProfileUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<NavbarProfile>;
+      if (customEvent.detail) {
+        setProfile(customEvent.detail);
+      }
+    };
+
+    window.addEventListener('pulse:profile-updated', handleProfileUpdated as EventListener);
+    return () => {
+      window.removeEventListener('pulse:profile-updated', handleProfileUpdated as EventListener);
+    };
+  }, [isAuthenticated, location.pathname]);
 
   const handleLogout = () => {
     clearCurrentSession();
@@ -78,7 +109,11 @@ export function Navbar() {
                     size="icon"
                     className="rounded-full"
                   >
-                    <User className="h-5 w-5" />
+                    {profile?.avatar ? (
+                      <img src={profile.avatar} alt={profile.name} className="h-7 w-7 rounded-full object-cover" />
+                    ) : (
+                      <User className="h-5 w-5" />
+                    )}
                   </Button>
                 </Link>
                 {hasOrganizerAccess && !isOrganizerArea && (

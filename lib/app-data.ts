@@ -1,6 +1,44 @@
 import { sql } from './db.js';
 import crypto from 'node:crypto';
 
+function inferAvatarGender(name: string) {
+  const firstName = name.trim().split(/\s+/)[0]?.toLowerCase() || '';
+  const femaleNames = new Set([
+    'ada', 'ama', 'anna', 'bella', 'chloe', 'diana', 'ella', 'emma', 'faith', 'grace',
+    'hana', 'ivy', 'jane', 'julia', 'kate', 'lisa', 'maria', 'mary', 'maya', 'nana',
+    'nora', 'olivia', 'queen', 'ruth', 'sarah', 'sophia', 'tina', 'zara',
+  ]);
+  const maleNames = new Set([
+    'alex', 'ben', 'charles', 'daniel', 'david', 'edward', 'eli', 'emmanuel', 'ethan',
+    'felix', 'george', 'henry', 'isaac', 'james', 'john', 'joseph', 'jude', 'kelvin',
+    'kwame', 'leo', 'mark', 'michael', 'nathan', 'noah', 'owen', 'paul', 'samuel',
+  ]);
+
+  if (femaleNames.has(firstName)) {
+    return 'girl';
+  }
+
+  if (maleNames.has(firstName)) {
+    return 'boy';
+  }
+
+  // Heuristic fallback when the name is unknown.
+  return /a$|e$|i$/.test(firstName) ? 'girl' : 'boy';
+}
+
+function buildGeneratedAvatar(name: string) {
+  const variant = inferAvatarGender(name);
+  return `https://avatar.iran.liara.run/public/${variant}?username=${encodeURIComponent(name)}`;
+}
+
+function isGeneratedAvatar(avatar?: string) {
+  return Boolean(
+    avatar &&
+      (avatar.includes('avatar.iran.liara.run/public/') ||
+        avatar.includes('api.dicebear.com/7.x/avataaars/svg'))
+  );
+}
+
 async function ensureOrganizerExists(organizerId: string) {
   const existingRows = await sql.query(`select id from organizers where id = $1 limit 1`, [organizerId]);
 
@@ -17,7 +55,7 @@ async function ensureOrganizerExists(organizerId: string) {
   const organizerName = user?.name || 'Pulse Studio';
   const organizerAvatar =
     user?.avatar ||
-    `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(organizerName)}`;
+    buildGeneratedAvatar(organizerName);
   const organizerBio = user?.email
     ? `Organizer account for ${user.email}`
     : 'Organizer profile created automatically.';
@@ -410,7 +448,7 @@ export async function signupUser(input: {
     `select concat('user-', coalesce(max(substring(id from 6)::int), 0) + 1) as id from app_users`
   );
   const nextId = idRows[0]?.id || `user-${Date.now()}`;
-  const avatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(input.name)}`;
+  const avatar = buildGeneratedAvatar(input.name);
 
   await sql.query(
     `
@@ -496,17 +534,34 @@ export async function updateUserProfile(input: {
   email: string;
   avatar?: string;
 }) {
+  const currentRows = await sql.query(
+    `
+      select avatar
+      from app_users
+      where id = $1
+      limit 1
+    `,
+    [input.userId]
+  );
+
+  const currentAvatar = currentRows[0]?.avatar as string | undefined;
+  const nextAvatar = input.avatar?.trim()
+    ? input.avatar.trim()
+    : isGeneratedAvatar(currentAvatar)
+      ? buildGeneratedAvatar(input.name)
+      : buildGeneratedAvatar(input.name);
+
   const rows = await sql.query(
     `
       update app_users
       set
         name = $2,
         email = $3,
-        avatar = coalesce(nullif($4, ''), avatar)
+        avatar = $4
       where id = $1
       returning id, name, email, avatar
     `,
-    [input.userId, input.name, input.email, input.avatar || '']
+    [input.userId, input.name, input.email, nextAvatar]
   );
 
   const user = rows[0];

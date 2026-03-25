@@ -44,7 +44,10 @@ export function ProfilePage() {
       });
 
       setUser(data.user);
+      setName(data.user.name);
+      setEmail(data.user.email);
       setAvatar(data.user.avatar);
+      window.dispatchEvent(new CustomEvent('pulse:profile-updated', { detail: data.user }));
       toast.success('Profile updated.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update profile.');
@@ -90,7 +93,9 @@ export function ProfilePage() {
           <Card className="border-black/5 bg-white/85 p-6 shadow-sm">
             <div className="mb-6">
               <h2 className="text-2xl font-semibold tracking-[-0.03em]">Edit details</h2>
-              <p className="mt-2 text-sm text-slate-600">Update your name, email, and avatar image.</p>
+              <p className="mt-2 text-sm text-slate-600">
+                Update your name and email. Leave avatar blank to use an auto-generated profile image based on the name.
+              </p>
             </div>
 
             <div className="space-y-5">
