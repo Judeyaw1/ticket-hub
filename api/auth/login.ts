@@ -1,5 +1,35 @@
-import { loginUser } from '../../lib/app-data';
-import { readJsonBody } from '../../lib/read-json-body';
+import { loginUser } from '../../lib/app-data.js';
+import { readJsonBody } from '../../lib/read-json-body.js';
+
+function formatAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : 'Failed to log in';
+
+  if (message.includes('DATABASE_URL')) {
+    return {
+      status: 500,
+      error: 'Server database configuration is missing. Set DATABASE_URL in Vercel project settings.',
+    };
+  }
+
+  if (message.includes('password_hash') || message.includes('app_users')) {
+    return {
+      status: 500,
+      error: 'Database schema is incomplete for auth. Ensure the app_users table exists and includes password_hash.',
+    };
+  }
+
+  if (message.includes('No account found') || message.includes('Incorrect password')) {
+    return {
+      status: 400,
+      error: message,
+    };
+  }
+
+  return {
+    status: 500,
+    error: message,
+  };
+}
 
 export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') {
@@ -16,6 +46,7 @@ export default async function handler(request: any, response: any) {
 
     response.status(200).json({ user });
   } catch (error) {
-    response.status(400).json({ error: error instanceof Error ? error.message : 'Failed to log in' });
+    const formatted = formatAuthError(error);
+    response.status(formatted.status).json({ error: formatted.error });
   }
 }

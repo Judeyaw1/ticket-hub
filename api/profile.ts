@@ -1,5 +1,5 @@
-import { getUserProfile, updateUserProfile } from '../lib/app-data';
-import { readJsonBody } from '../lib/read-json-body';
+import { getUserProfile, updateUserProfile } from '../lib/app-data.js';
+import { readJsonBody } from '../lib/read-json-body.js';
 
 export default async function handler(request: any, response: any) {
   try {

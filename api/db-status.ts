@@ -1,4 +1,4 @@
-import { getDatabaseStatus } from '../lib/db';
+import { getDatabaseStatus } from '../lib/db.js';
 
 export default async function handler(_request: unknown, response: any) {
   try {

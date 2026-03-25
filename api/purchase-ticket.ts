@@ -1,5 +1,5 @@
-import { purchaseTickets } from '../lib/app-data';
-import { readJsonBody } from '../lib/read-json-body';
+import { purchaseTickets } from '../lib/app-data.js';
+import { readJsonBody } from '../lib/read-json-body.js';
 
 export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') {

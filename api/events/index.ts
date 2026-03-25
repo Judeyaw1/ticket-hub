@@ -1,4 +1,4 @@
-import { getEvents } from '../../lib/app-data';
+import { getEvents } from '../../lib/app-data.js';
 
 export default async function handler(_request: any, response: any) {
   try {

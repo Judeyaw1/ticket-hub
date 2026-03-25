@@ -1,4 +1,4 @@
-import { getUserDashboard } from '../lib/app-data';
+import { getUserDashboard } from '../lib/app-data.js';
 
 export default async function handler(request: any, response: any) {
   try {
